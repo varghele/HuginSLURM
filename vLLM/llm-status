@@ -1,0 +1,26 @@
+#!/bin/bash
+
+echo "Munin AI Assistant Status"
+echo "=========================="
+echo ""
+
+JOB_ID=$(squeue -u llm-service -n llm-service -h -o %i)
+
+if [ -z "$JOB_ID" ]; then
+    echo "Status: ❌ OFFLINE"
+    echo ""
+    echo "Service hours: Monday-Friday, 7 AM - 7 PM"
+    echo ""
+    NEXT_START=$(date -d "next Monday 7:00" '+%Y-%m-%d %H:%M')
+    echo "Next scheduled start: $NEXT_START"
+else
+    RUNTIME=$(squeue -j $JOB_ID -h -o %M)
+    TIMELEFT=$(squeue -j $JOB_ID -h -o %L)
+
+    echo "Status: ✅ ONLINE"
+    echo "Job ID: $JOB_ID"
+    echo "Running for: $RUNTIME"
+    echo "Time remaining: $TIMELEFT"
+    echo ""
+    echo "To connect: connect-llm"
+fi

@@ -1,0 +1,32 @@
+#!/bin/bash
+
+echo "╔════════════════════════════════════════╗"
+echo "║   Munin Research AI Assistant          ║"
+echo "║   Llama 3.1 70B (Quantized)            ║"
+echo "╚════════════════════════════════════════╝"
+echo ""
+
+# Check if service is running
+if [ ! -f /opt/llm-service/current_node.txt ]; then
+    echo "❌ Service is not currently running"
+    echo ""
+    echo "Service hours: Monday-Friday, 7 AM - 7 PM"
+    echo ""
+    echo "To check status: llm-status"
+    exit 1
+fi
+
+PORT=3000
+
+echo "✅ Service is running!"
+echo ""
+echo "To connect, run this command:"
+echo ""
+echo "  ssh -L $PORT:localhost:$PORT $USER@munin"
+echo ""
+echo "Then open your browser to: http://localhost:$PORT"
+echo ""
+echo "First time users: Create an account when prompted"
+echo ""
+echo "Note: Keep the SSH connection open while using the service"
+echo ""

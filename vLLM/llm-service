@@ -1,0 +1,66 @@
+#!/bin/bash
+
+case "$1" in
+    status)
+        /opt/llm-service/scripts/monitor.sh
+        ;;
+    start)
+        echo "Starting LLM service..."
+        sudo -u llm-service sbatch /opt/llm-service/scripts/start_service.sh
+        echo "Job submitted. Check status with: llm-service status"
+        ;;
+    stop)
+        echo "Stopping LLM service..."
+        JOB_ID=$(squeue -u llm-service -n llm-service -h -o %i)
+        if [ -n "$JOB_ID" ]; then
+            scancel $JOB_ID
+            echo "Service stopped (Job ID: $JOB_ID)"
+        else
+            echo "No service job found"
+        fi
+        ;;
+    restart)
+        echo "Restarting LLM service..."
+        $0 stop
+        sleep 5
+        $0 start
+        ;;
+    logs)
+        LATEST_LOG=$(ls -t /opt/llm-service/logs/service-*.out 2>/dev/null | head -1)
+        if [ -n "$LATEST_LOG" ]; then
+            tail -f "$LATEST_LOG"
+        else
+            echo "No log files found"
+        fi
+        ;;
+    users)
+        echo "Checking active users..."
+        JOB_ID=$(squeue -u llm-service -n llm-service -h -o %i)
+        if [ -n "$JOB_ID" ]; then
+            CONTAINER=$(docker ps --filter "name=llm-webui-$JOB_ID" --format "{{.Names}}")
+            if [ -n "$CONTAINER" ]; then
+                echo "Active WebUI container: $CONTAINER"
+                # Note: Detailed user info requires database access
+                echo "For detailed user info, check: /opt/llm-service/data/webui.db"
+            else
+                echo "No active container found"
+            fi
+        else
+            echo "Service not running"
+        fi
+        ;;
+    *)
+        echo "Munin LLM Service Management"
+        echo ""
+        echo "Usage: llm-service {status|start|stop|restart|logs|users}"
+        echo ""
+        echo "Commands:"
+        echo "  status   - Show detailed service status"
+        echo "  start    - Start the service manually"
+        echo "  stop     - Stop the service"
+        echo "  restart  - Restart the service"
+        echo "  logs     - View live service logs"
+        echo "  users    - Show active users (basic info)"
+        exit 1
+        ;;
+esac
