@@ -1,16 +1,16 @@
 #!/bin/bash
 #SBATCH --job-name=llm-service
-#SBATCH --partition=priorityLLMv2
-#SBATCH --gres=gpu:rtx5090:2
+#SBATCH --partition=priorityLLM
+#SBATCH --gres=gpu:rtx5090:1
 #SBATCH --time=14:00:00
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=128G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
 #SBATCH --output=/opt/llm-service/logs/service-%j.out
 #SBATCH --error=/opt/llm-service/logs/service-%j.err
 
 # Service configuration
 COMPUTE_NODE=$(hostname)
-MODEL_PATH="/opt/llm-service/models/llama-3.3-70b-awq"
+MODEL_PATH="/opt/llm-service/models/llama-3.1-70b-awq"
 VLLM_PORT=8000
 WEBUI_PORT=3000
 DATA_DIR="/opt/llm-service/data"
@@ -21,45 +21,40 @@ echo "=========================================="
 echo "Node: $COMPUTE_NODE"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Start Time: $(date)"
-echo "Model: Llama 3.3 70B AWQ INT4"
-echo "GPU: 2x RTX 5090"
-echo "CPUs: 16 cores"
-echo "RAM: 128GB"
+echo "Model: Llama 3.1 8B AWQ INT4"
+echo "GPU: 1x RTX 5090"
+echo "CPUs: 8 cores"
+echo "RAM: 64GB"
 echo "=========================================="
 
 # Activate environment
 source /opt/llm-service/vllm-env/bin/activate
-export VLLM_WORKER_MULTIPROC_METHOD=spawn
-export VLLM_USE_TRITON_FLASH_ATTN=0
-export VLLM_ATTENTION_BACKEND=FLASH_ATTN
-export CUSA_VISIBLE_DEVICES=0,1
 
-# Start vLLM server on DUAL GPUs
-echo "Starting vLLM server on dual GPUs..."
+# Start vLLM server on SINGLE GPU
+echo "Starting vLLM server on single GPU..."
 vllm serve $MODEL_PATH \
     --host 127.0.0.1 \
     --port $VLLM_PORT \
-    --tensor-parallel-size 2 \
-    --gpu-memory-utilization 0.9 \
-    --max-model-len 32768 \
-    --quantization awq_marlin \
+    --tensor-parallel-size 1 \
+    --gpu-memory-utilization 0.75 \
+    --max-model-len 4098 \
+    --quantization awq \
     --disable-log-requests \
     --trust-remote-code \
-    --max-num-seqs 6 \
-    --disable-custom-all-reduce \
-    --enforce-eager &
+    --max-num-seqs 4 \
+    --enforce-eager&
 
 VLLM_PID=$!
 echo "vLLM PID: $VLLM_PID"
 
 # Wait for vLLM to be ready
-echo "Waiting for vLLM to initialize (this may take 3-5 minutes for 70B model)..."
-for i in {1..300}; do
+echo "Waiting for vLLM to initialize (this may take 2-3 minutes)..."
+for i in {1..180}; do
     if curl -s http://127.0.0.1:$VLLM_PORT/health > /dev/null 2>&1; then
         echo "✓ vLLM is ready!"
         break
     fi
-    if [ $i -eq 300 ]; then
+    if [ $i -eq 180 ]; then
         echo "✗ vLLM failed to start within timeout"
         exit 1
     fi
@@ -79,7 +74,7 @@ docker run -d \
     -e WEBUI_SECRET_KEY="$(openssl rand -hex 32)" \
     -e ENABLE_SIGNUP="False" \
     -e DEFAULT_USER_ROLE="user" \
-    -e DEFAULT_MODELS="llama-3.3-70b-awq" \
+    -e DEFAULT_MODELS="llama-3.1-8b-awq" \
     -v $DATA_DIR:/app/backend/data \
     ghcr.io/open-webui/open-webui:main
 
@@ -105,15 +100,13 @@ echo "=========================================="
 echo "Access URL: http://$COMPUTE_NODE:$WEBUI_PORT"
 echo ""
 echo "Resource Usage:"
-echo "  GPU: 2x RTX 5090 (~27GB VRAM per GPU)"
-echo "  CPUs: 16 cores"
-echo "  RAM: ~80-100GB (out of 128GB allocated)"
-echo "  Context Length: 128K tokens"
-echo "  Max Concurrent Users: 6"
+echo "  GPU: 1x RTX 5090 (~18-20GB VRAM)"
+echo "  CPUs: 8 cores"
+echo "  RAM: ~40-50GB (out of 64GB allocated)"
 echo ""
 echo "Users connect with:"
-echo "1. Connect to university VPN"
-echo "2. Visit: http://172.18.184.99:$WEBUI_PORT"
+echo "ssh -L $WEBUI_PORT:localhost:$WEBUI_PORT username@munin"
+echo "Then visit: http://localhost:$WEBUI_PORT"
 echo "=========================================="
 
 # Save connection info for users
